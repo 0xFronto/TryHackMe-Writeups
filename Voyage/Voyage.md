@@ -314,7 +314,6 @@ chmod +x deepce.sh
 
 From running, the most vital piece of information was the `CAP_SYS_MODULE` under the **Dangerous Capabilities** section:
 
-![Deepce run](./images/deepce-run.png)  
 ![Deepce dangerous caps](./images/deepce-dangerous-caps.png)
 
 ---
