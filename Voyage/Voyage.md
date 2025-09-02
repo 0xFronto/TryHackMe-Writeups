@@ -265,8 +265,6 @@ curl -v http://localhost:1234/ -H "Cookie: session_data=${HEX}"
 ```
 
 Result: reverse shell received from the finance panel backend.  
-![Reverse shell obtained](./images/finance-rev-shell.png)  
-
 ![RCE confirmed](./images/finance-rce-confirm.png)
 
 ---
